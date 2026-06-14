@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+src/papersearch/__init__.py
+src/papersearch/cli.py
+src/papersearch/openalex.py
+src/papersearch/pubmed.py
+src/papersearch/utils.py
+src/papersearch.egg-info/PKG-INFO
+src/papersearch.egg-info/SOURCES.txt
+src/papersearch.egg-info/dependency_links.txt
+src/papersearch.egg-info/entry_points.txt
+src/papersearch.egg-info/requires.txt
+src/papersearch.egg-info/top_level.txt

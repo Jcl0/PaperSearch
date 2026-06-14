@@ -1,0 +1,2 @@
+[console_scripts]
+papersearch = papersearch.cli:main
