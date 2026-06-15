@@ -2,6 +2,10 @@
 
 Collecting literature knowledge is crucial for developing LLM applications. PaperSearch provides a comprehensive literature search and PDF download tool supporting PubMed and arXiv databases. While automated PDF downloading is not available for all papers due to access restrictions, the tool offers PDF download options.
 
+## GUI Interface
+
+![PaperSearch GUI](GUI.PNG)
+
 ## Acknowledgments
 
 **Developed with [Trae](https://trae.ai/)** - an AI-powered coding assistant that enhanced the development process.
