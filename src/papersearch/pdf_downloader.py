@@ -26,15 +26,53 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .utils import get_journal_abbreviation, sanitize_filename, get_unique_filename
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('pdf_download_errors.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
+
+# Global variable to store log file path
+_log_file_path = None
+_log_handler = None
+
+
+def setup_logging(output_dir: str = None):
+    """
+    Setup logging with output directory.
+    
+    Args:
+        output_dir: Directory to save log file. If None, uses current directory.
+    """
+    global _log_file_path, _log_handler
+    
+    # Remove existing file handler if any
+    if _log_handler is not None:
+        logger.removeHandler(_log_handler)
+    
+    # Set log file path
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        _log_file_path = os.path.join(output_dir, 'pdf_download_errors.log')
+    else:
+        _log_file_path = 'pdf_download_errors.log'
+    
+    # Create new file handler
+    _log_handler = logging.FileHandler(_log_file_path, encoding='utf-8')
+    _log_handler.setLevel(logging.INFO)
+    _log_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    
+    # Add handler to logger
+    logger.addHandler(_log_handler)
+    
+    # Also add console handler if not already present
+    if not any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler) for h in logger.handlers):
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        logger.addHandler(console_handler)
+    
+    logger.setLevel(logging.INFO)
+
+
+# Initialize logging with default path
+setup_logging()
 
 # Default configuration
 DEFAULT_CONFIG = {

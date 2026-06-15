@@ -105,9 +105,13 @@ Downloads are processed in parallel using configurable worker threads, with opti
 
 ## License
 
-This project is for educational and research purposes only. Please ensure compliance with copyright laws when downloading academic papers.
+This project is for educational and research purposes only. Please ensure compliance with copyright laws when downloading academic papers. 
 
 ## Related Projects
 
 - [google-deepmind/science-skills](https://github.com/google-deepmind/science-skills) - Scientific literature analysis
 - [ferru97/PyPaperBot](https://github.com/ferru97/PyPaperBot/) - Academic paper downloader
+
+## Contact 
+
+- email: jiacheng_liu@buaa.edu.cn

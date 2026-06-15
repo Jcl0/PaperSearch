@@ -271,10 +271,13 @@ class PaperSearchGUI:
             has_filters = (year or min_year or max_year or min_citations > 0)
             fetch_count = max_results * 3 if has_filters else max_results
             
+            # Only fetch citations if sorting by citation count or filtering by minimum citations
+            fetch_citations = (sort_by == "cited_by_count" or min_citations > 0)
+            
             if database == "pubmed":
-                results = pubmed.search_pubmed(query, max_results=fetch_count)
+                results = pubmed.search_pubmed(query, max_results=fetch_count, fetch_citations=fetch_citations)
             elif database == "arxiv":
-                results = arxiv.search_arxiv(query, max_results=fetch_count)
+                results = arxiv.search_arxiv(query, max_results=fetch_count, fetch_citations=fetch_citations)
             elif database == "biorxiv":
                 results = biorxiv.search_biorxiv(query, max_results=fetch_count)
             else:
@@ -408,6 +411,9 @@ class PaperSearchGUI:
         output_dir = os.path.join(output_dir, "PaperSearchRes")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
+        
+        # Setup logging to output directory
+        pdf_downloader.setup_logging(output_dir)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = f"papersearch_{timestamp}"

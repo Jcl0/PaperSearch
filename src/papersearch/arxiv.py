@@ -1,10 +1,74 @@
 """arXiv API integration for PaperSearch."""
 
+import asyncio
 import urllib.parse
 
+import aiohttp
 import requests
 
 BASE_URL = "http://export.arxiv.org/api/query"
+SEMANTIC_SCHOLAR_URL = "https://api.semanticscholar.org/v1/paper"
+
+
+async def _async_get_citation_count(session: aiohttp.ClientSession, arxiv_id: str, doi: str = None) -> int:
+    """Get citation count from Semantic Scholar API asynchronously."""
+    if arxiv_id:
+        try:
+            url = f"{SEMANTIC_SCHOLAR_URL}/arXiv:{arxiv_id}"
+            async with session.get(url, timeout=10) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("citationCount", 0)
+        except Exception:
+            pass
+    
+    if doi:
+        try:
+            url = f"{SEMANTIC_SCHOLAR_URL}/doi:{doi}"
+            async with session.get(url, timeout=10) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("citationCount", 0)
+        except Exception:
+            pass
+    
+    return 0
+
+
+async def _async_fetch_citation_counts(results: list[dict]) -> None:
+    """Fetch citation counts for all articles asynchronously."""
+    if not results:
+        return
+    
+    # Create a mapping of index to (arxiv_id, doi)
+    id_map = {i: (result.get("arxiv_id"), result.get("doi")) for i, result in enumerate(results) 
+              if result.get("arxiv_id") or result.get("doi")}
+    
+    if not id_map:
+        return
+    
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for index, (arxiv_id, doi) in id_map.items():
+            task = asyncio.ensure_future(_async_get_citation_count(session, arxiv_id, doi))
+            task.index = index
+            tasks.append(task)
+        
+        # Run all tasks concurrently
+        completed_tasks = await asyncio.gather(*tasks)
+        
+        # Update results with citation counts
+        for task, count in zip(tasks, completed_tasks):
+            results[task.index]["cited_by_count"] = count
+
+
+def _fetch_citation_counts_parallel(results: list[dict]) -> None:
+    """Fetch citation counts for all articles in parallel using asyncio."""
+    if not results:
+        return
+    
+    # Run async function synchronously
+    asyncio.run(_async_fetch_citation_counts(results))
 
 
 def search_arxiv(
@@ -14,6 +78,7 @@ def search_arxiv(
     year: int = None,
     min_year: int = None,
     max_year: int = None,
+    fetch_citations: bool = True,
 ) -> list[dict]:
     """Search arXiv for preprints matching the query."""
     sort_param = {
@@ -51,7 +116,7 @@ def search_arxiv(
     response = requests.get(url)
     response.raise_for_status()
     
-    return _parse_arxiv_response(response.content)
+    return _parse_arxiv_response(response.content, fetch_citations=fetch_citations)
 
 
 def fetch_papers(arxiv_ids: list[str]) -> list[dict]:
@@ -78,7 +143,7 @@ def fetch_papers(arxiv_ids: list[str]) -> list[dict]:
     return results
 
 
-def _parse_arxiv_response(xml_content: bytes) -> list[dict]:
+def _parse_arxiv_response(xml_content: bytes, fetch_citations: bool = True) -> list[dict]:
     """Parse arXiv XML response into standardized format."""
     import xml.etree.ElementTree as ET
     
@@ -112,17 +177,26 @@ def _parse_arxiv_response(xml_content: bytes) -> list[dict]:
                 if doi and doi.startswith("http://dx.doi.org/"):
                     doi = doi.replace("http://dx.doi.org/", "")
         
+        pure_arxiv_id = arxiv_id.split("/")[-1] if arxiv_id else None
+        
         results.append({
             "id": arxiv_id,
-            "arxiv_id": arxiv_id.split("/")[-1] if arxiv_id else None,  # Extract pure arXiv ID
+            "arxiv_id": pure_arxiv_id,
             "title": title.strip() if isinstance(title, str) else None,
             "authors": authors,
             "journal": "arXiv Preprint",
             "year": published[:4] if isinstance(published, str) else None,
             "doi": doi,
             "abstract": summary.strip() if isinstance(summary, str) else None,
-            "cited_by_count": 0,
+            "cited_by_count": None,
             "published": published,
         })
     
+    # Fetch citation counts in parallel if requested
+    if fetch_citations:
+        _fetch_citation_counts_parallel(results)
+    
     return results
+
+
+

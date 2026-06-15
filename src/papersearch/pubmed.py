@@ -1,13 +1,16 @@
 """PubMed API integration for PaperSearch."""
 
+import asyncio
 import json
 import os
 import urllib.parse
 import xml.etree.ElementTree as ET
 
+import aiohttp
 import requests
 
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov"
+CROSSREF_URL = "https://api.crossref.org/works"
 
 
 def _env_params(email: str = None, api_key: str = None) -> dict:
@@ -26,6 +29,58 @@ def _env_params(email: str = None, api_key: str = None) -> dict:
     return params
 
 
+async def _async_get_citation_count(session: aiohttp.ClientSession, doi: str) -> int:
+    """Get citation count from CrossRef API asynchronously."""
+    if not doi:
+        return 0
+    
+    try:
+        url = f"{CROSSREF_URL}/{urllib.parse.quote(doi)}"
+        async with session.get(url, timeout=10) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data.get("message", {}).get("is-referenced-by-count", 0)
+    except Exception:
+        pass
+    
+    return 0
+
+
+async def _async_fetch_citation_counts(results: list[dict]) -> None:
+    """Fetch citation counts for all articles asynchronously."""
+    if not results:
+        return
+    
+    # Create a mapping of index to DOI
+    doi_map = {i: result.get("doi") for i, result in enumerate(results) if result.get("doi")}
+    
+    if not doi_map:
+        return
+    
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        for index, doi in doi_map.items():
+            task = asyncio.ensure_future(_async_get_citation_count(session, doi))
+            task.index = index
+            tasks.append(task)
+        
+        # Run all tasks concurrently
+        completed_tasks = await asyncio.gather(*tasks)
+        
+        # Update results with citation counts
+        for task, count in zip(tasks, completed_tasks):
+            results[task.index]["cited_by_count"] = count
+
+
+def _fetch_citation_counts_parallel(results: list[dict]) -> None:
+    """Fetch citation counts for all articles in parallel using asyncio."""
+    if not results:
+        return
+    
+    # Run async function synchronously
+    asyncio.run(_async_fetch_citation_counts(results))
+
+
 def search_pubmed(
     query: str,
     max_results: int = 10,
@@ -35,6 +90,7 @@ def search_pubmed(
     year: int = None,
     min_year: int = None,
     max_year: int = None,
+    fetch_citations: bool = True,
 ) -> list[dict]:
     """Search PubMed for articles matching the query."""
     params = _env_params(email, api_key) | {
@@ -68,10 +124,10 @@ def search_pubmed(
     if not pmids:
         return []
     
-    return fetch_articles(pmids)
+    return fetch_articles(pmids, fetch_citations=fetch_citations)
 
 
-def fetch_articles(pmids: list[str]) -> list[dict]:
+def fetch_articles(pmids: list[str], fetch_citations: bool = True) -> list[dict]:
     """Fetch detailed article information for a list of PMIDs."""
     params = _env_params() | {
         "db": "pubmed",
@@ -138,7 +194,14 @@ def fetch_articles(pmids: list[str]) -> list[dict]:
             "year": year,
             "doi": doi,
             "abstract": abstract,
-            "cited_by_count": 0,
+            "cited_by_count": None,
         })
     
+    # Fetch citation counts in parallel if requested
+    if fetch_citations:
+        _fetch_citation_counts_parallel(results)
+    
     return results
+
+
+

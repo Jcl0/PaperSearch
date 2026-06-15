@@ -21,7 +21,7 @@ except ImportError:
 # Add src directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from papersearch import pubmed, arxiv, biorxiv, utils
+from papersearch import pubmed, arxiv, biorxiv, utils, pdf_downloader
 
 
 def main():
@@ -177,6 +177,9 @@ def handle_search(args):
     print(f"Max results: {args.max_results}, Sort by: {args.sort_by}")
     
     if args.database == "pubmed":
+        # Only fetch citations if sorting by citation count or filtering by minimum citations
+        fetch_citations = (args.sort_by == "cited_by_count" or args.min_citations > 0)
+        
         results = pubmed.search_pubmed(
             query=args.query,
             max_results=args.max_results,
@@ -185,16 +188,21 @@ def handle_search(args):
             api_key=args.api_key,
             year=args.year,
             min_year=args.min_year,
-            max_year=args.max_year
+            max_year=args.max_year,
+            fetch_citations=fetch_citations
         )
     elif args.database == "arxiv":
+        # Only fetch citations if sorting by citation count or filtering by minimum citations
+        fetch_citations = (args.sort_by == "cited_by_count" or args.min_citations > 0)
+        
         results = arxiv.search_arxiv(
             query=args.query,
             max_results=args.max_results,
             sort_by=args.sort_by,
             year=args.year,
             min_year=args.min_year,
-            max_year=args.max_year
+            max_year=args.max_year,
+            fetch_citations=fetch_citations
         )
     elif args.database == "biorxiv":
         results = biorxiv.search_biorxiv(
@@ -217,6 +225,11 @@ def handle_search(args):
     display_results(results)
     
     if args.output:
+        # Setup logging to output directory
+        output_dir = os.path.dirname(args.output)
+        if output_dir:
+            pdf_downloader.setup_logging(output_dir)
+        
         utils.export_results(results, args.output, search_query=args.query)
         print(f"Results exported to {args.output}")
     
@@ -242,6 +255,11 @@ def handle_fetch(args):
     display_results(results)
     
     if args.output:
+        # Setup logging to output directory
+        output_dir = os.path.dirname(args.output)
+        if output_dir:
+            pdf_downloader.setup_logging(output_dir)
+        
         utils.export_results(results, args.output)
         print(f"Results exported to {args.output}")
 
@@ -250,6 +268,11 @@ def handle_export(args):
     """Handle the export command"""
     with open(args.input, 'r', encoding='utf-8') as f:
         results = json.load(f)
+    
+    # Setup logging to output directory
+    output_dir = os.path.dirname(args.output)
+    if output_dir:
+        pdf_downloader.setup_logging(output_dir)
     
     utils.export_results(results, args.output)
     print(f"Results exported to {args.output}")
